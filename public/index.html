@@ -5,16 +5,38 @@
   <title>동영상 업로드</title>
   <style>
     body { font-family: sans-serif; margin: 40px; }
-    .video-item { cursor: pointer; color: blue; text-decoration: underline; }
+    .video-item { cursor: pointer; color: blue; text-decoration: underline; margin: 4px 0; }
+    #progressContainer {
+      margin-top: 20px;
+      display: none;
+      width: 100%;
+      background: #eee;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 20px;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #4CAF50;
+      text-align: center;
+      color: white;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
   <h1>🎬 동영상 업로드</h1>
 
-  <form action="/upload" method="post" enctype="multipart/form-data">
+  <form id="uploadForm">
     <input type="file" name="video" accept="video/*" required>
     <button type="submit">업로드</button>
   </form>
+
+  <!-- 업로드 진행률 -->
+  <div id="progressContainer">
+    <div id="progressBar">0%</div>
+  </div>
 
   <hr>
 
@@ -22,6 +44,51 @@
   <div id="videoList"></div>
 
   <script>
+    // 업로드 진행 표시 기능
+    const form = document.getElementById("uploadForm");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const fileInput = form.querySelector("input[name='video']");
+      if (!fileInput.files.length) return alert("파일을 선택하세요!");
+
+      const formData = new FormData();
+      formData.append("video", fileInput.files[0]);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/upload", true);
+
+      // 진행률 업데이트
+      xhr.upload.onprogress = function (event) {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          progressContainer.style.display = "block";
+          progressBar.style.width = percent + "%";
+          progressBar.textContent = percent + "%";
+        }
+      };
+
+      // 업로드 완료 후
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          progressBar.textContent = "완료!";
+          setTimeout(() => {
+            progressContainer.style.display = "none";
+            progressBar.style.width = "0%";
+            loadVideos();
+            fileInput.value = "";
+          }, 1000);
+        } else {
+          alert("업로드 실패: " + xhr.responseText);
+        }
+      };
+
+      xhr.send(formData);
+    });
+
+    // 업로드된 영상 목록 불러오기
     async function loadVideos() {
       const res = await fetch("/list");
       const videos = await res.json();
@@ -32,10 +99,7 @@
         const link = document.createElement("div");
         link.textContent = v.name;
         link.className = "video-item";
-        link.onclick = () => {
-          // Gyazo처럼 새 탭에 재생 페이지 열기
-          window.open(v.url, "_blank");
-        };
+        link.onclick = () => window.open(v.url, "_blank");
         listDiv.appendChild(link);
       });
     }
