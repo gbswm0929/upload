@@ -88,7 +88,25 @@
       xhr.send(formData);
     });
 
-    // 업로드된 영상 목록 불러오기
+    // // 업로드된 영상 목록 불러오기
+    // async function loadVideos() {
+    //   const res = await fetch("/list");
+    //   const videos = await res.json();
+    //   const listDiv = document.getElementById("videoList");
+    //   listDiv.innerHTML = "";
+
+    //   videos.forEach((v) => {
+    //     const link = document.createElement("div");
+    //     link.textContent = v.name;
+    //     link.className = "video-item";
+    //     link.onclick = () => window.open(v.url, "_blank");
+    //     listDiv.appendChild(link);
+    //   });
+    // }
+
+    // loadVideos();
+
+
     async function loadVideos() {
       const res = await fetch("/list");
       const videos = await res.json();
@@ -96,14 +114,15 @@
       listDiv.innerHTML = "";
 
       videos.forEach((v) => {
-        const link = document.createElement("div");
+        const link = document.createElement("a");
+        link.href = v.url;
         link.textContent = v.name;
-        link.className = "video-item";
-        link.onclick = () => window.open(v.url, "_blank");
+        link.target = "_blank"; // 새 탭에서 열기
+        link.style.display = "block";
+        link.style.margin = "4px 0";
         listDiv.appendChild(link);
       });
     }
-
     loadVideos();
   </script>
 </body>
