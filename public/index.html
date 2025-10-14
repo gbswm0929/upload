@@ -113,7 +113,7 @@
 
 
 
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
@@ -146,19 +146,19 @@
   <form id="uploadForm">
     <input type="file" name="video" accept="video/*" required>
     <button type="submit">업로드</button>
-  </form>
+  </form> -->
 
   <!-- 업로드 진행률 -->
-  <div id="progressContainer">
+  <!-- <div id="progressContainer">
     <div id="progressBar">0%</div>
   </div>
 
   <hr>
 
   <h2>업로드된 동영상 목록</h2>
-  <div id="videoList"></div>
+  <div id="videoList"></div> -->
 
-  <script>
+  <!-- <script>
     // 업로드 진행 표시 기능
     const form = document.getElementById("uploadForm");
     const progressContainer = document.getElementById("progressContainer");
@@ -217,6 +217,157 @@
         link.target = "_blank"; // 새 탭에서 열기
         link.style.display = "block";
         listDiv.appendChild(link);
+      });
+    }
+
+    loadVideos();
+  </script> -->
+<!-- </body>
+</html> -->
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>동영상 업로드</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; }
+    a.video-item { display: inline-block; color: blue; text-decoration: underline; margin-right: 10px; }
+    button.delete-btn { background: #f44336; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+    #progressContainer {
+      margin-top: 20px;
+      display: none;
+      width: 100%;
+      background: #eee;
+      border-radius: 6px;
+      overflow: hidden;
+      height: 20px;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #4CAF50;
+      text-align: center;
+      color: white;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎬 동영상 업로드</h1>
+
+  <form id="uploadForm">
+    <input type="file" name="video" accept="video/*" required>
+    <button type="submit">업로드</button>
+  </form>
+
+  <!-- 업로드 진행률 -->
+  <div id="progressContainer">
+    <div id="progressBar">0%</div>
+  </div>
+
+  <hr>
+
+  <h2>업로드된 동영상 목록</h2>
+  <div id="videoList"></div>
+
+  <script>
+    // 업로드 진행 표시
+    const form = document.getElementById("uploadForm");
+    const progressContainer = document.getElementById("progressContainer");
+    const progressBar = document.getElementById("progressBar");
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const fileInput = form.querySelector("input[name='video']");
+      if (!fileInput.files.length) return alert("파일을 선택하세요!");
+
+      const formData = new FormData();
+      formData.append("video", fileInput.files[0]);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/upload", true);
+
+      xhr.upload.onprogress = function (event) {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          progressContainer.style.display = "block";
+          progressBar.style.width = percent + "%";
+          progressBar.textContent = percent + "%";
+        }
+      };
+
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          progressBar.textContent = "완료!";
+          setTimeout(() => {
+            progressContainer.style.display = "none";
+            progressBar.style.width = "0%";
+            loadVideos();
+            fileInput.value = "";
+          }, 800);
+        } else {
+          alert("업로드 실패: " + xhr.responseText);
+        }
+      };
+
+      xhr.send(formData);
+    });
+
+    // 🔥 삭제 요청 함수
+    async function deleteVideo(filename) {
+      const code = prompt("비밀 코드를 입력하세요:");
+      if (!code) return;
+
+      const confirmName = prompt(`삭제할 파일 이름(${filename})을 다시 입력하세요:`);
+      if (confirmName !== filename) {
+        alert("파일 이름이 일치하지 않습니다. 삭제가 취소되었습니다.");
+        return;
+      }
+
+      const res = await fetch("/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, code }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert("✅ 삭제 완료!");
+        loadVideos();
+      } else {
+        alert("❌ " + data.error);
+      }
+    }
+
+    // 업로드된 파일 목록 표시
+    async function loadVideos() {
+      const res = await fetch("/list");
+      const videos = await res.json();
+      const listDiv = document.getElementById("videoList");
+      listDiv.innerHTML = "";
+
+      videos.forEach((v) => {
+        const link = document.createElement("a");
+        link.href = v.url;
+        link.textContent = v.name;
+        link.target = "_blank";
+        link.className = "video-item";
+
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "삭제";
+        delBtn.className = "delete-btn";
+        delBtn.onclick = () => deleteVideo(v.name);
+
+        const itemDiv = document.createElement("div");
+        itemDiv.appendChild(link);
+        itemDiv.appendChild(delBtn);
+
+        listDiv.appendChild(itemDiv);
       });
     }
 
