@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>동영상 업로드</title>
+  <style>
+    body { font-family: sans-serif; margin: 40px; }
+    .video-item { cursor: pointer; color: blue; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>🎬 동영상 업로드</h1>
+
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <input type="file" name="video" accept="video/*" required>
+    <button type="submit">업로드</button>
+  </form>
+
+  <hr>
+
+  <h2>업로드된 동영상 목록</h2>
+  <div id="videoList"></div>
+
+  <script>
+    async function loadVideos() {
+      const res = await fetch("/list");
+      const videos = await res.json();
+      const listDiv = document.getElementById("videoList");
+      listDiv.innerHTML = "";
+
+      videos.forEach((v) => {
+        const link = document.createElement("div");
+        link.textContent = v.name;
+        link.className = "video-item";
+        link.onclick = () => {
+          // Gyazo처럼 새 탭에 재생 페이지 열기
+          window.open(v.url, "_blank");
+        };
+        listDiv.appendChild(link);
+      });
+    }
+
+    loadVideos();
+  </script>
+</body>
+</html>
