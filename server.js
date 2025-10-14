@@ -46,7 +46,44 @@ app.get("/list", (req, res) => {
   });
 });
 
-// ✅ Gyazo 스타일 영상 재생 페이지
+// // ✅ Gyazo 스타일 영상 재생 페이지
+// app.get("/watch/:filename", (req, res) => {
+//   const filename = req.params.filename;
+//   const filepath = path.join(uploadFolder, filename);
+
+//   if (!fs.existsSync(filepath)) {
+//     return res.status(404).send("파일을 찾을 수 없습니다.");
+//   }
+
+//   // 간단한 재생용 HTML 반환
+//   res.send(`
+//     <!DOCTYPE html>
+//     <html lang="ko">
+//     <head>
+//       <meta charset="UTF-8" />
+//       <title>${filename}</title>
+//       <style>
+//         body {
+//           margin: 0;
+//           background: #000;
+//           display: flex;
+//           align-items: center;
+//           justify-content: center;
+//           height: 100vh;
+//         }
+//         video {
+//           max-width: 100%;
+//           max-height: 100%;
+//         }
+//       </style>
+//     </head>
+//     <body>
+//       <video src="/videos/${encodeURIComponent(filename)}" controls autoplay></video>
+//     </body>
+//     </html>
+//   `);
+// });
+
 app.get("/watch/:filename", (req, res) => {
   const filename = req.params.filename;
   const filepath = path.join(uploadFolder, filename);
@@ -55,12 +92,26 @@ app.get("/watch/:filename", (req, res) => {
     return res.status(404).send("파일을 찾을 수 없습니다.");
   }
 
-  // 간단한 재생용 HTML 반환
+  // 서버 주소 — 실제로는 배포 시 본인 서버 주소로 교체
+  const baseUrl = `http://localhost:${PORT}`;
+
   res.send(`
     <!DOCTYPE html>
     <html lang="ko">
     <head>
       <meta charset="UTF-8" />
+      <meta property="og:title" content="${filename}" />
+      <meta property="og:type" content="video.other" />
+      <meta property="og:video" content="${baseUrl}/videos/${encodeURIComponent(filename)}" />
+      <meta property="og:video:type" content="video/mp4" />
+      <meta property="og:video:width" content="640" />
+      <meta property="og:video:height" content="360" />
+      <meta property="og:image" content="${baseUrl}/thumbnail.jpg" />
+      <meta property="og:description" content="업로드된 영상 미리보기" />
+      <meta name="twitter:card" content="player" />
+      <meta name="twitter:player" content="${baseUrl}/videos/${encodeURIComponent(filename)}" />
+      <meta name="twitter:player:width" content="640" />
+      <meta name="twitter:player:height" content="360" />
       <title>${filename}</title>
       <style>
         body {
@@ -83,6 +134,7 @@ app.get("/watch/:filename", (req, res) => {
     </html>
   `);
 });
+
 
 app.listen(PORT, () => {
   console.log(`✅ 서버 실행 중: http://localhost:${PORT}`);
