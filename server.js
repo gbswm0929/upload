@@ -238,6 +238,86 @@
 
 
 
+// const express = require("express");
+// const multer = require("multer");
+// const fs = require("fs");
+// const path = require("path");
+
+// const app = express();
+// const PORT = 3000;
+
+// // 🔒 비밀 코드 설정
+// const SECRET_CODE = process.env.code; // 원하는 코드로 변경 가능
+
+// // 업로드 폴더 설정
+// const uploadFolder = path.join(__dirname, "uploads");
+// if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder);
+
+// // Multer 설정
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => cb(null, uploadFolder),
+//   filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+// });
+// const upload = multer({ storage });
+
+// // 미들웨어
+// app.use(express.static(path.join(__dirname, "public")));
+// app.use("/videos", express.static(uploadFolder));
+// app.use(express.json());
+
+// // 루트 페이지
+// app.get("/", (req, res) => {
+//   res.sendFile(path.join(__dirname, "public", "index.html"));
+// });
+
+// // 업로드
+// app.post("/upload", upload.single("video"), (req, res) => {
+//   if (!req.file) return res.status(400).send("파일이 업로드되지 않았습니다.");
+//   res.status(200).send("ok");
+// });
+
+// // 목록
+// app.get("/list", (req, res) => {
+//   fs.readdir(uploadFolder, (err, files) => {
+//     if (err) return res.status(500).json({ error: "파일 목록 불러오기 실패" });
+//     const videos = files.map((file) => ({
+//       name: file,
+//       url: `/videos/${encodeURIComponent(file)}`,
+//     }));
+//     res.json(videos);
+//   });
+// });
+
+// // 🔥 삭제 처리
+// app.post("/delete", (req, res) => {
+//   const { filename, code } = req.body;
+
+//   if (!filename || !code)
+//     return res.status(400).json({ error: "요청이 잘못되었습니다." });
+
+//   if (code !== SECRET_CODE)
+//     return res.status(403).json({ error: "비밀 코드가 틀렸습니다." });
+
+//   const filePath = path.join(uploadFolder, filename);
+//   if (!fs.existsSync(filePath))
+//     return res.status(404).json({ error: "파일이 존재하지 않습니다." });
+
+//   try {
+//     fs.unlinkSync(filePath);
+//     return res.json({ message: "삭제 완료" });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({ error: "삭제 중 오류 발생" });
+//   }
+// });
+
+// app.listen(PORT, () => console.log(`✅ 서버 실행 중: http://localhost:${PORT}`));
+
+
+
+
+
+// server.js (업데이트됨: 서버사이드 비디오 파일 검증 추가)
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -246,37 +326,143 @@ const path = require("path");
 const app = express();
 const PORT = 3000;
 
-// 🔒 비밀 코드 설정
-const SECRET_CODE = process.env.code; // 원하는 코드로 변경 가능
+// 🔒 비밀 코드 (삭제용) - 필요하면 변경
+const SECRET_CODE = process.env.code;
 
-// 업로드 폴더 설정
+// 업로드 폴더 준비
 const uploadFolder = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadFolder)) fs.mkdirSync(uploadFolder);
 
-// Multer 설정
+// 허용 확장자 목록 (소문자)
+const ALLOWED_EXT = [".mp4", ".mov"]; //".mp4", ".mov", ".webm", ".mkv", ".avi", ".ogg", ".ogv", ".ts"
+
+// --------------------
+// Multer 설정 (파일명 안전화)
+// --------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadFolder),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+  filename: (req, file, cb) => {
+    // originalname에서 경로 요소 제거 (path traversal 방지)
+    const safeOrig = path.basename(file.originalname);
+    const name = Date.now() + "-" + safeOrig;
+    cb(null, name);
+  },
 });
 const upload = multer({ storage });
 
-// 미들웨어
+// --------------------
+// 유틸: 파일이 비디오인지 검사 (매직바이트 + 확장자 + mimetype 체크 조합)
+// --------------------
+function startsWith(buf, pattern) {
+  if (buf.length < pattern.length) return false;
+  for (let i = 0; i < pattern.length; i++) if (buf[i] !== pattern[i]) return false;
+  return true;
+}
+
+function isVideoBySignature(buf) {
+  // buf는 파일 앞부분(예: 4KB)이어야 함
+  if (!buf || buf.length < 4) return false;
+
+  // MP4 / MOV : 바이트 4-7에 'ftyp' 존재 (일반적)
+  if (buf.length >= 12) {
+    if (buf.slice(4, 8).toString() === "ftyp") return true;
+  }
+
+  // WebM / Matroska: EBML header 0x1A45DFA3
+  if (startsWith(buf, Buffer.from([0x1A, 0x45, 0xDF, 0xA3]))) return true;
+
+  // AVI: 'RIFF' ... 'AVI ' (offset 0 and 8)
+  if (buf.slice(0,4).toString() === "RIFF" && buf.slice(8,12).toString() === "AVI ") return true;
+
+  // OGG: 'OggS'
+  if (buf.slice(0,4).toString() === "OggS") return true;
+
+  // MPEG PS/TS: MPEG Program Stream start code 0x000001BA (PS)
+  if (startsWith(buf, Buffer.from([0x00,0x00,0x01,0xBA]))) return true;
+
+  // MPEG-1/2 PS may also start with 0x000001B3 (sequence header) - treat as video container possible
+  if (startsWith(buf, Buffer.from([0x00,0x00,0x01,0xB3]))) return true;
+
+  // Fallback: check for ftyp brand 'mp41','mp42','isom','M4V ' etc at offset 4-8
+  if (buf.length >= 12) {
+    const brand = buf.slice(4, 8).toString();
+    if (["mp41","mp42","isom","M4V ","3gp4","qt  "].includes(brand)) return true;
+  }
+
+  return false;
+}
+
+// 읽을 바이트 크기 (앞부분 검사)
+const READ_BYTES = 4096;
+
+// --------------------
+// 미들웨어 / 정적 제공
+// --------------------
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/videos", express.static(uploadFolder));
 app.use(express.json());
 
-// 루트 페이지
+// --------------------
+// 루트
+// --------------------
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// 업로드
+// --------------------
+// 업로드 엔드포인트
+// - 파일을 저장한 뒤, 서버에서 안전 검사 수행
+// - 검사 실패 시 파일 삭제하고 400 응답 반환
+// --------------------
 app.post("/upload", upload.single("video"), (req, res) => {
   if (!req.file) return res.status(400).send("파일이 업로드되지 않았습니다.");
-  res.status(200).send("ok");
+
+  const savedPath = path.join(uploadFolder, req.file.filename);
+
+  try {
+    // 1) 확장자 검사 (기본 필터)
+    const ext = path.extname(req.file.originalname || "").toLowerCase();
+    if (!ALLOWED_EXT.includes(ext)) {
+      // 허용 확장자 외는 경고(단, 계속 검사하되 결과적으로 거부)
+      // 삭제 후 응답
+      fs.unlinkSync(savedPath);
+      return res.status(400).send("허용되지 않는 파일 확장자입니다.");
+    }
+
+    // 2) 앞부분 바이트를 읽어 시그니처 검사
+    const fd = fs.openSync(savedPath, "r");
+    const buffer = Buffer.alloc(READ_BYTES);
+    const bytesRead = fs.readSync(fd, buffer, 0, READ_BYTES, 0);
+    fs.closeSync(fd);
+    const head = buffer.slice(0, bytesRead);
+
+    if (!isVideoBySignature(head)) {
+      // 검사 실패: 파일 삭제
+      fs.unlinkSync(savedPath);
+      return res.status(400).send("업로드된 파일이 유효한 비디오 파일이 아닙니다.");
+    }
+
+    // 3) (선택) 클라이언트가 보낸 mimetype도 확인 — 참고용(조작 가능)
+    const clientType = req.file.mimetype || "";
+    if (!clientType.startsWith("video/")) {
+      // 경고 로그만 남기고 통과 (필요시 삭제하도록 조정 가능)
+      console.warn(`업로드된 파일의 클라이언트 Content-Type이 video/이 아님: ${clientType}`);
+      // (우리는 이미 매직바이트로 검증했으므로 통과)
+    }
+
+    // 성공
+    return res.status(200).send("ok");
+  } catch (err) {
+    console.error("업로드 검증 중 오류:", err);
+    // 에러 시 파일이 있으면 삭제 시도
+    try { if (fs.existsSync(savedPath)) fs.unlinkSync(savedPath); } catch(e){}
+    return res.status(500).send("서버 오류 발생");
+  }
 });
 
-// 목록
+// --------------------
+// 업로드된 파일 목록
+// --------------------
 app.get("/list", (req, res) => {
   fs.readdir(uploadFolder, (err, files) => {
     if (err) return res.status(500).json({ error: "파일 목록 불러오기 실패" });
@@ -288,19 +474,16 @@ app.get("/list", (req, res) => {
   });
 });
 
-// 🔥 삭제 처리
+// --------------------
+// 삭제 (기존 동작 유지)
+// --------------------
 app.post("/delete", (req, res) => {
   const { filename, code } = req.body;
-
-  if (!filename || !code)
-    return res.status(400).json({ error: "요청이 잘못되었습니다." });
-
-  if (code !== SECRET_CODE)
-    return res.status(403).json({ error: "비밀 코드가 틀렸습니다." });
+  if (!filename || !code) return res.status(400).json({ error: "요청이 잘못되었습니다." });
+  if (code !== SECRET_CODE) return res.status(403).json({ error: "비밀 코드가 틀렸습니다." });
 
   const filePath = path.join(uploadFolder, filename);
-  if (!fs.existsSync(filePath))
-    return res.status(404).json({ error: "파일이 존재하지 않습니다." });
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "파일이 존재하지 않습니다." });
 
   try {
     fs.unlinkSync(filePath);
@@ -311,4 +494,5 @@ app.post("/delete", (req, res) => {
   }
 });
 
+// --------------------
 app.listen(PORT, () => console.log(`✅ 서버 실행 중: http://localhost:${PORT}`));
