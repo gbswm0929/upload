@@ -850,4 +850,11 @@ app.post("/delete", (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`✅ 서버 실행 중: http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  const cmd = `apt-get update; apt-get install ffmpeg`
+  exec(cmd, (err) => {
+    if (err) console.error("에러")
+    else console.log("성공")
+  })
+  console.log(`✅ 서버 실행 중: http://localhost:${PORT}`)
+});
