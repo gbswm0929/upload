@@ -1,4 +1,10 @@
 {
+  "name": "uploadvideos",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
   "dependencies": {
     "express": "^5.1.0",
     "gridfs-stream": "^1.1.1",
