@@ -5,7 +5,7 @@ FROM node:18
 RUN apt-get update && apt-get install -y ffmpeg
 
 # 작업 디렉토리 설정
-WORKDIR /app
+WORKDIR /workspace
 
 # package.json 복사 후 종속성 설치
 COPY package*.json ./
